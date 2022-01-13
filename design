@@ -61,7 +61,7 @@ module instMem(IN,OUT);
   
   always @(IN)
     begin
-      M[0] = 11'b00001000000; // ADD 	R7,R0,R0
+      M[0] = 11'b00111000000; // ADD 	R7,R0,R0
       M[1] = 11'b01111100101; // SUB    R7,R5,R4
       M[2] = 11'b00011000100; // ADD    R3,R0,R4
       M[3] = 11'b00001000110; // ADD    R1,R0,R6
