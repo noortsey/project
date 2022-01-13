@@ -1,0 +1,303 @@
+module FPOperations(clk1, clk2,out);
+  
+  input clk1, clk2;
+  output [31:0] out;
+  
+ // Two-phase clock
+  reg [31:0] PC,A, B,EX_MEM_ALU,MEM_WB_ALU;
+  reg [10:0] IF_ID_INSTRUCTION,ID_EX_INSTRUCTION,EX_MEM_INSTRUCTION,MEM_WB_INSTRUCTION; 		// 1 
+    
+  reg [31:0] Reg [7:0]; // edit
+ // reg [10:0] Mem [7:0]; // edit
+  
+  wire [10:0] w1;
+  wire [31:0] o;
+    
+  instMem m(PC,w1);
+  always @ (posedge clk1) 									// IF Stage
+      begin
+        IF_ID_INSTRUCTION <= #2 w1;  	//edit
+ 		PC       <= #2 PC + 1;
+      end
+  
+  always @ (posedge clk2) 									// ID stage
+      begin
+        A  <= #2 Reg[IF_ID_INSTRUCTION[2:0]]; // "rs"
+        B  <= #2 Reg[IF_ID_INSTRUCTION[5:3]]; // "rt"
+ 		ID_EX_INSTRUCTION <= #2 IF_ID_INSTRUCTION;
+      end
+  
+  ALU a1(A,B,o,ID_EX_INSTRUCTION[10:9]); 
+  //assign out=
+  always @ (posedge clk1) 									//EX Stage
+      begin
+        EX_MEM_INSTRUCTION     <= #2 ID_EX_INSTRUCTION;
+        EX_MEM_ALU <= #2 o;
+      end
+  assign out=EX_MEM_ALU;
+         
+  
+  always @(posedge clk2) 									// MEM stage
+      begin
+        MEM_WB_INSTRUCTION       <= #2 EX_MEM_INSTRUCTION;
+        MEM_WB_ALU   <= #2 EX_MEM_ALU;
+      end
+  
+  
+  always @(posedge clk1) 									//WB stage
+    begin 
+        Reg[MEM_WB_INSTRUCTION[8:6]] <= #2 MEM_WB_ALU; // "rd"
+    end
+endmodule
+
+
+
+module instMem(IN,OUT);
+  input [31:0] IN;
+  output [10:0] OUT;
+  
+  reg [10:0] OUT;
+  reg [10:0] M[6:0];
+  
+  always @(IN)
+    begin
+      M[0] = 11'b00001000000; // ADD 	R7,R0,R0
+      M[1] = 11'b01111100101; // SUB    R7,R5,R4
+      M[2] = 11'b00011000100; // ADD    R3,R0,R4
+      M[3] = 11'b00001000110; // ADD    R1,R0,R6
+      M[4] = 11'b01000100010; // SUB    R0,R2,R4
+      M[5] = 11'b00100011000; // ADD 	R4,R3,R5
+      M[6] = 11'b01110110110; // SUB 	R6,R6,R6
+      
+      
+      OUT=M[IN];
+    end
+endmodule  
+
+
+
+
+
+
+module ALU(Op1,Op2,result,operation); // detecting operation needed
+  
+  input [31:0] Op1;
+  input [31:0] Op2;
+  input [1:0] operation;
+  
+  output reg [31:0] result;
+  wire [31:0] W1,W2,W3,W4;
+  
+  
+  Addition x1(Op1,Op2,W1);
+  
+  Subtraction x2(Op1,Op2,W2);
+  
+  Multiplication x3(Op1,Op2,W3);
+  
+  Division x4(Op1,Op2,W4);
+  
+  
+  always @(*)
+    begin
+      
+      if(operation == 2'b00)
+        begin
+          result<=W1;
+        end
+      
+      if(operation == 2'b01) 
+        begin
+          result<=W2;
+        end
+      
+      if(operation == 2'b10)
+        begin
+          result<=W3;  
+        end
+      
+      if(operation == 2'b11)
+        begin
+          result<=W4;
+        end
+    end
+endmodule
+
+
+/*  
+module Addition(I1,I2,O1); // working on best case (both numbers are positive, same exponent)
+  
+  input [31:0] I1;
+  input [31:0] I2;
+  
+  output [31:0] O1;
+  
+  assign O1=I1+I2;     
+   
+endmodule
+*/
+
+module Addition(I1,I2,O1);
+  input [31:0] I1;
+  input [31:0] I2;
+
+  output reg [31:0] O1;
+
+  output reg [7:0] POWER1,POWER2;
+  output reg [23:0] MANTISSA1,MANTISSA2;
+
+  always @ (*)
+    begin
+      MANTISSA1[23]=1;
+	  MANTISSA2[23]=1;
+	  POWER1=I1[30:23]-127;
+      POWER2=I2[30:23]-127;
+
+	  MANTISSA1[22:0]=I1[22:0];
+ 	  MANTISSA2[22:0]=I2[22:0];
+      
+      if(POWER1==POWER2)
+        begin
+          O1[22:0]=(MANTISSA1[22:0]+MANTISSA2[22:0])>>1;
+		  O1[30:23]=POWER1+127+1;
+		  O1[31]=0;
+        end
+      
+      if(POWER1>POWER2)
+        begin
+          while(POWER1!=POWER2)
+            begin
+              
+              MANTISSA2[23:0]=MANTISSA2[23:0]>>1;
+		      POWER2=POWER2+1;
+            end
+          
+          O1[22:0]=MANTISSA1[22:0]+MANTISSA2[22:0];
+		  //O1[18]=O1[18]+1;
+		  O1[30:23]=POWER1+127;
+		  O1[31]=0;
+        end
+      
+      if(POWER1<POWER2)
+        begin
+          while(POWER1!=POWER2)
+            begin
+              
+              MANTISSA1[23:0]=MANTISSA1[23:0]>>1;
+              POWER1=POWER1+1;
+            end
+
+          O1[22:0]=MANTISSA1[22:0]+MANTISSA2[22:0];
+		  //O1[18]=O1[18]+1;
+		  O1[30:23]=POWER1+127;
+		  O1[31]=0;
+        end
+    end
+endmodule
+
+
+module Subtraction(I1,I2,O1);
+  input [31:0] I1;
+  input [31:0] I2;
+
+  output reg [31:0] O1;
+
+  output reg [7:0] POWER1,POWER2;
+  output reg [23:0] MANTISSA1,MANTISSA2;
+
+  always @ (*)
+    begin
+      MANTISSA1[23]=1;
+	  MANTISSA2[23]=1;
+	  POWER1=I1[30:23]-127;
+      POWER2=I2[30:23]-127;
+
+      MANTISSA1[22:0]=I1[22:0];
+      MANTISSA2[22:0]=I2[22:0];
+      
+      if(POWER1==POWER2)
+        begin
+          O1[22:0]=(MANTISSA1[22:0]-MANTISSA2[22:0]);
+	      O1[30:23]=0;
+		  O1[31]=0;
+
+		end
+      
+      if(POWER1>POWER2)
+        begin
+          while(POWER1!=POWER2)
+            begin
+              MANTISSA2[23:0]=MANTISSA2[23:0]>>1;
+              POWER2=POWER2+1;
+            end
+          
+          O1[22:0]=MANTISSA1[22:0]-MANTISSA2[22:0];
+          //O1[18]=O1[18]+1;
+          O1[30:23]=POWER1+127;
+          O1[31]=0;
+        end
+      
+      if(POWER1<POWER2)
+        begin
+          while(POWER1!=POWER2)
+            begin
+              MANTISSA1[23:0]=MANTISSA1[23:0]>>1;
+              POWER1=POWER1+1;
+            end
+          
+          O1[22:0]=MANTISSA1[22:0]-MANTISSA2[22:0];
+		//O1[18]=O1[18]+1;
+		  O1[30:23]=POWER1+127;
+		  O1[31]=1;
+        end
+    end
+endmodule
+
+
+
+module Multiplication (I1,I2,O1);
+
+input [31:0] I1;
+input [31:0] I2;
+
+output reg [31:0] O1;
+
+output reg [7:0] POWER1,POWER2;
+output reg [23:0] MANTISSA1,MANTISSA2;
+
+always @ (*)
+begin
+MANTISSA1[23]=1;
+MANTISSA2[23]=1;
+POWER1=I1[30:23]-127;
+POWER2=I2[30:23]-127;
+
+MANTISSA1[22:0]=I1[22:0];
+MANTISSA2[22:0]=I2[22:0];
+
+
+
+
+
+MANTISSA2[23:0]=(MANTISSA1[23:0]*MANTISSA2[23:0]);
+O1[22:0]=MANTISSA2[23:0];
+O1[30:23]=POWER1+POWER2+127;
+O1[31]=0;
+
+end
+
+endmodule
+
+
+module Division(I1,I2,O1);// working on all cases 
+
+  input [31:0] I1;
+  input [31:0] I2;
+
+  output[31:0] O1;
+   
+  assign O1[22:0]=I1[22:0]/I2[22:0];
+  assign O1[30:23]=I1[30:23]-I1[30:23];
+  assign O1[31]=I1[31]^I2[31];
+  
+endmodule
