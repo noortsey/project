@@ -1,0 +1,55 @@
+// Code your testbench here
+// or browse Examples
+module test;
+  
+  reg clk1,clk2;
+  integer k;
+  wire [31:0] out;
+  
+  FPOperations fp(clk1,clk2,out);
+  
+  initial 
+    begin 
+      clk1=0; clk2=0;
+      repeat (20)
+        begin
+          
+          #5 clk1=1; #5 clk1=0;
+          #5 clk2=1; #5 clk2=0;
+          
+        end
+    end
+  
+  initial 
+    begin
+      //Registers 
+      fp.Reg[0]=32'b01000010000011110000000000000000;//35.75
+      fp.Reg[1]=32'b01000001101011000000000000000000;//20.5
+      fp.Reg[2]=32'b01000010001110000000000000000000;//46
+      fp.Reg[3]=32'b01000001110001011001100110011010;//24.7
+      fp.Reg[4]=32'b01000000111110000000000000000000;//7.75
+      fp.Reg[5]=32'b01000010110010000000000000000000;//100
+      fp.Reg[6]=32'b01000001110100100000000000000000;//26.25
+      fp.Reg[7]=32'b00000000000000000000000000000000;//0
+
+      
+      fp.PC=0;
+      
+      #280
+      for(k=0;k<8;k=k+1)
+        $display ("register%d - value= %b		%h",k,fp.Reg[k],fp.Reg[k]);
+    end
+  
+  initial 
+    begin 
+      
+      $dumpfile ("fp.vcd");
+      $dumpvars (0,test);
+      #300 $finish;
+      
+    end
+endmodule
+
+
+// 01000010001011100000000000000000 true
+// 01000010011001010000000000000000
